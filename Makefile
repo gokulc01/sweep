@@ -1,5 +1,5 @@
 build:
-	g++ sweep.cpp -o sweep.o
+	g++ sweep.cpp -o sweep
 
 install:
 	g++ sweep.cpp -o sweep
