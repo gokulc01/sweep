@@ -1,12 +1,11 @@
 #include <iostream>
-#include <thread> // For sleep_for
-#include <chrono> // For milliseconds, microseconds
+#include <thread>
+#include <chrono>
 #include <string>
 #include <vector>
 #include <cmath>
 #include <algorithm>
 
-// Platform specific includes for terminal size
 #ifdef _WIN32
     #include <windows.h>
 #else
@@ -14,13 +13,12 @@
     #include <unistd.h>
 #endif
 
-// Class to handle terminal operations
+// Class to handle terminal operations and sweep animations
 class TerminalSweeper {
 private:
     int width;
     int height;
     
-    // Target duration for animations
     int targetDurationMs; 
 
     struct Point {
@@ -31,13 +29,22 @@ private:
     };
 
 public:
+    /**
+     * @brief Constructor for TerminalSweeper.
+     * Initializes the object and detects the current terminal dimensions.
+     * * @param duration (int) The target duration for the animation in milliseconds. Default is 500ms.
+     */
     TerminalSweeper(int duration = 500) : targetDurationMs(duration) {
         updateDimensions();
     }
 
-    // specific logic to get terminal width/height
+    /**
+     * @brief Updates the internal width and height variables based on the current terminal size.
+     * Uses platform-specific API calls (Windows API or ioctl for Unix-like systems).
+     * * @return void
+     */
     void updateDimensions() {
-        width = 80;  // Fallback defaults
+        width = 80; // Default fallback
         height = 24;
 
         #ifdef _WIN32
@@ -55,18 +62,25 @@ public:
         #endif
     }
 
-    // Helper to print ANSI escape code
+    /**
+     * @brief Helper function to print a string to standard output.
+     * * @param str (const std::string&) The string to print.
+     * @return void
+     */
     void print(const std::string& str) {
         std::cout << str;
     }
 
-    // Animation 1: Vertical Scan
+    /**
+     * @brief Performs a vertical "Down" sweep animation.
+     * Clears the terminal line by line from top to bottom.
+     * * @return void
+     */
     void performDownSweep() {
-        print("\033[?25l"); // Hide Cursor
+        print("\033[?25l"); // Hide cursor
 
         std::string emptyLine(width, ' ');
 
-        // Calculate delay to ensure total time is targetDurationMs
         int stepDelay = std::max(1, targetDurationMs / height);
 
         for (int i = 1; i <= height; ++i) {
@@ -76,14 +90,17 @@ public:
         }
 
         std::cout << "\033[1;1H"; 
-        print("\033[?25h"); // Show Cursor
+        print("\033[?25h"); // Show cursor
     }
 
-    // Animation 2: Horizontal Wipe
+    /**
+     * @brief Performs a horizontal "Right" sweep animation.
+     * Clears the terminal column by column from left to right.
+     * * @return void
+     */
     void performRightSweep() {
         print("\033[?25l"); 
         
-        // Calculate delay in microseconds for better precision on wide terminals
         int stepDelayUs = (targetDurationMs * 1000) / width;
 
         for (int col = 1; col <= width; ++col) {
@@ -98,7 +115,12 @@ public:
         print("\033[?25h"); 
     }
 
-    // Animation 3: Wipper (Circular back and forth)
+    /**
+     * @brief Performs a circular "Wipper" sweep animation.
+     * Sweeps from left to right and then back from right to left, clearing contents.
+     * Uses angular sorting relative to the bottom-center of the screen.
+     * * @return void
+     */
     void performWipperSweep() {
         print("\033[?25l"); 
 
@@ -120,17 +142,14 @@ public:
             return a.angle > b.angle;
         });
 
-        // Calculate Timing
         const double angleStep = 0.05; 
-        // Approx steps in one pass (PI / 0.05)
         int stepsPerPass = (int)(3.14159 / angleStep);
         if (stepsPerPass == 0) stepsPerPass = 1;
 
-        // Total time divided by 2 passes (Forward + Back)
         int passDuration = targetDurationMs / 2;
         int stepDelay = std::max(1, passDuration / stepsPerPass);
 
-        // --- Pass 1: Forward ---
+        // Pass 1: Forward Sweep
         size_t idx = 0;
         size_t total = points.size();
         std::vector<Point> activeWipper;
@@ -152,7 +171,7 @@ public:
             std::this_thread::sleep_for(std::chrono::milliseconds(stepDelay));
         }
 
-        // --- Pass 2: Backward ---
+        // Pass 2: Backward Sweep
         long r_idx = (long)total - 1;
         while (r_idx >= 0) {
             double currentAng = points[r_idx].angle;
@@ -175,7 +194,12 @@ public:
         print("\033[?25h");
     }
 
-    // Animation 4: Black Hole (Spiral Vacuum)
+    /**
+     * @brief Performs a spiral "Black Hole" sweep animation.
+     * Sucks characters into the center of the screen in a spiral pattern.
+     * Sorts points by a combination of distance and angle.
+     * * @return void
+     */
     void performBlackHoleSweep() {
         print("\033[?25l"); 
 
@@ -201,13 +225,11 @@ public:
             return scoreA > scoreB;
         });
 
-        // Calculate Timing
         size_t totalPoints = points.size();
         int batchSize = 10;
         size_t totalBatches = totalPoints / batchSize;
         if (totalBatches == 0) totalBatches = 1;
 
-        // Delay per batch in microseconds to fit total duration
         int batchDelayUs = (targetDurationMs * 1000) / totalBatches;
 
         int counter = 0;
@@ -226,11 +248,17 @@ public:
     }
 };
 
+/**
+ * @brief Main entry point of the program.
+ * Parses command line arguments to select the animation mode and duration.
+ * * @param argc (int) Number of command line arguments.
+ * @param argv (char*) Array of command line argument strings.
+ * @return int Exit status code (0 for success, 1 for error).
+ */
 int main(int argc, char* argv[]) {
-    int duration = 500; // Default 500ms
+    int duration = 500;
     std::string mode = "down"; 
 
-    // Parse arguments loop
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         
@@ -271,7 +299,6 @@ int main(int argc, char* argv[]) {
         }
     }
     
-    // Initialize sweeper with parsed duration
     TerminalSweeper sweeper(duration);
 
     if (mode == "right") {
