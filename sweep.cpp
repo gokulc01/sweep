@@ -1,6 +1,6 @@
 #include <iostream>
 #include <thread> // For sleep_for
-#include <chrono> // For milliseconds
+#include <chrono> // For milliseconds, microseconds
 #include <string>
 #include <vector>
 #include <cmath>
@@ -19,6 +19,9 @@ class TerminalSweeper {
 private:
     int width;
     int height;
+    
+    // Target duration for animations
+    int targetDurationMs; 
 
     struct Point {
         int r;
@@ -28,7 +31,7 @@ private:
     };
 
 public:
-    TerminalSweeper() {
+    TerminalSweeper(int duration = 500) : targetDurationMs(duration) {
         updateDimensions();
     }
 
@@ -57,123 +60,125 @@ public:
         std::cout << str;
     }
 
-    // Animation 1: A "Scanner" bar moving down
+    // Animation 1: Vertical Scan
     void performDownSweep() {
-        // ANSI: Hide Cursor
-        print("\033[?25l");
+        print("\033[?25l"); // Hide Cursor
 
         std::string emptyLine(width, ' ');
 
+        // Calculate delay to ensure total time is targetDurationMs
+        int stepDelay = std::max(1, targetDurationMs / height);
+
         for (int i = 1; i <= height; ++i) {
-            // Simply overwrite the current line with spaces
             std::cout << "\033[" << i << ";1H";
             std::cout << emptyLine << std::flush;
-
-            // Speed of animation
-            std::this_thread::sleep_for(std::chrono::milliseconds(15));
+            std::this_thread::sleep_for(std::chrono::milliseconds(stepDelay));
         }
 
-        // Reset Cursor to Top-Left (1,1)
-        std::cout << "\033[1;1H";
-        
-        // ANSI: Show Cursor
-        print("\033[?25h");
+        std::cout << "\033[1;1H"; 
+        print("\033[?25h"); // Show Cursor
     }
 
-    // Animation 2: A "Wipe" from left to right (Faster version)
+    // Animation 2: Horizontal Wipe
     void performRightSweep() {
-        print("\033[?25l"); // Hide cursor
+        print("\033[?25l"); 
         
+        // Calculate delay in microseconds for better precision on wide terminals
+        int stepDelayUs = (targetDurationMs * 1000) / width;
+
         for (int col = 1; col <= width; ++col) {
             for (int row = 1; row <= height; ++row) {
-                // Move to current position and erase
                 std::cout << "\033[" << row << ";" << col << "H ";
             }
             std::cout << std::flush;
-            
-            // Speed of animation
-            std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
+            std::this_thread::sleep_for(std::chrono::microseconds(stepDelayUs)); 
         }
 
-        std::cout << "\033[1;1H"; // Home
-        print("\033[?25h"); // Show cursor
+        std::cout << "\033[1;1H"; 
+        print("\033[?25h"); 
     }
 
-    // Animation 3: A "Wipper" circular sweep (back and forth)
+    // Animation 3: Wipper (Circular back and forth)
     void performWipperSweep() {
-        print("\033[?25l"); // Hide cursor
+        print("\033[?25l"); 
 
-        // Pivot at bottom center
         int pivotR = height;
         int pivotC = width / 2;
-
-        // 1. Collect all screen coordinates and calculate their angle
         std::vector<Point> points;
         points.reserve(width * height);
 
         for (int r = 1; r <= height; r++) {
             for (int c = 1; c <= width; c++) {
-                // Cartesian conversion relative to pivot
                 double x = (double)(c - pivotC);
-                // Correct aspect ratio: chars are about twice as tall as wide,
-                // so we stretch Y to make the sweep look circular rather than flat.
                 double y = (double)(height - r) * 2.0; 
-
-                // Angle: atan2(y, x). 
-                // Left side (x < 0) -> Angle approaches PI
-                // Right side (x > 0) -> Angle approaches 0
                 double ang = std::atan2(y, x);
-                points.push_back({r, c, ang, 0.0}); // Dist not used here
+                points.push_back({r, c, ang, 0.0});
             }
         }
 
-        // 2. Sort by angle descending (Sweeps from Left/PI to Right/0)
         std::sort(points.begin(), points.end(), [](const Point& a, const Point& b) {
             return a.angle > b.angle;
         });
 
-        // 3. Process in angular chunks (Pass 1: Left to Right)
+        // Calculate Timing
+        const double angleStep = 0.05; 
+        // Approx steps in one pass (PI / 0.05)
+        int stepsPerPass = (int)(3.14159 / angleStep);
+        if (stepsPerPass == 0) stepsPerPass = 1;
+
+        // Total time divided by 2 passes (Forward + Back)
+        int passDuration = targetDurationMs / 2;
+        int stepDelay = std::max(1, passDuration / stepsPerPass);
+
+        // --- Pass 1: Forward ---
         size_t idx = 0;
         size_t total = points.size();
         std::vector<Point> activeWipper;
         
-        if (total == 0) return;
-
-        // Angle step size (radians). Larger = faster sweep, blockier look.
-        const double angleStep = 0.05; 
-
-        // --- FORWARD SWEEP (Clearing) ---
         while (idx < total) {
             double currentAng = points[idx].angle;
             double nextThreshold = currentAng - angleStep;
 
             activeWipper.clear();
-
-            // Collect points for the *new* chunk
             while (idx < total && points[idx].angle > nextThreshold) {
                 activeWipper.push_back(points[idx]);
                 idx++;
             }
 
-            // Just erase the chunk immediately (no brush drawn)
             for (const auto& p : activeWipper) {
                 std::cout << "\033[" << p.r << ";" << p.c << "H "; 
             }
             std::cout << std::flush;
+            std::this_thread::sleep_for(std::chrono::milliseconds(stepDelay));
+        }
 
-            // Delay
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // --- Pass 2: Backward ---
+        long r_idx = (long)total - 1;
+        while (r_idx >= 0) {
+            double currentAng = points[r_idx].angle;
+            double nextThreshold = currentAng + angleStep;
+
+            activeWipper.clear();
+            while (r_idx >= 0 && points[r_idx].angle < nextThreshold) {
+                activeWipper.push_back(points[r_idx]);
+                r_idx--;
+            }
+
+            for (const auto& p : activeWipper) {
+                std::cout << "\033[" << p.r << ";" << p.c << "H "; 
+            }
+            std::cout << std::flush;
+            std::this_thread::sleep_for(std::chrono::milliseconds(stepDelay));
         }
 
         std::cout << "\033[1;1H"; 
         print("\033[?25h");
     }
 
-    // Animation 4: Black Hole (Sucks everything into center)
+    // Animation 4: Black Hole (Spiral Vacuum)
     void performBlackHoleSweep() {
-        print("\033[?25l"); // Hide cursor
+        print("\033[?25l"); 
 
-        // Center of the screen
         int pivotR = height / 2;
         int pivotC = width / 2;
 
@@ -182,34 +187,36 @@ public:
 
         for (int r = 1; r <= height; r++) {
             for (int c = 1; c <= width; c++) {
-                double dy = (double)(r - pivotR) * 2.0; // Aspect correction
+                double dy = (double)(r - pivotR) * 2.0; 
                 double dx = (double)(c - pivotC);
                 double dist = std::sqrt(dx*dx + dy*dy);
-                // Angle used for swirl effect
                 double ang = std::atan2(dy, dx); 
                 points.push_back({r, c, ang, dist});
             }
         }
 
-        // Sort for Spiral Effect (Outside In)
         std::sort(points.begin(), points.end(), [](const Point& a, const Point& b) {
-            // Factor 1.5 helps interleave the angle with distance to spiral
             double scoreA = a.dist + (a.angle / 3.14159);
             double scoreB = b.dist + (b.angle / 3.14159);
             return scoreA > scoreB;
         });
 
+        // Calculate Timing
+        size_t totalPoints = points.size();
+        int batchSize = 10;
+        size_t totalBatches = totalPoints / batchSize;
+        if (totalBatches == 0) totalBatches = 1;
+
+        // Delay per batch in microseconds to fit total duration
+        int batchDelayUs = (targetDurationMs * 1000) / totalBatches;
+
         int counter = 0;
-        int t = 5000;
         for (const auto& p : points) {
-            // Move to position and erase (Overwrite with space)
             std::cout << "\033[" << p.r << ";" << p.c << "H "; 
             
-            // Optimization: Flush every 10 characters to keep animation smooth
-            if (++counter % 10 == 0) {
+            if (++counter % batchSize == 0) {
                  std::cout << std::flush;
-                 std::this_thread::sleep_for(std::chrono::microseconds(t));
-                 t *= 0.99;
+                 std::this_thread::sleep_for(std::chrono::microseconds(batchDelayUs));
             }
         }
         std::cout << std::flush;
@@ -220,17 +227,33 @@ public:
 };
 
 int main(int argc, char* argv[]) {
-    TerminalSweeper sweeper;
-    std::string mode = "down"; // Default behavior
+    int duration = 500; // Default 500ms
+    std::string mode = "down"; 
 
-    if (argc > 1) {
-        std::string arg = argv[1];
-        if (arg == "-r" || arg == "--right") {
+    // Parse arguments loop
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        
+        if (arg == "-t") {
+            if (i + 1 < argc) {
+                try {
+                    duration = std::stoi(argv[++i]);
+                } catch (...) {
+                    std::cerr << "Error: Invalid duration provided.\n";
+                    return 1;
+                }
+            } else {
+                std::cerr << "Error: -t requires a duration (ms).\n";
+                return 1;
+            }
+        } else if (arg == "-r" || arg == "--right") {
             mode = "right";
         } else if (arg == "-w" || arg == "--wipper") { 
             mode = "wipper";
         } else if (arg == "-b" || arg == "--blackhole") { 
             mode = "blackhole";
+        } else if (arg == "-d" || arg == "--down") {
+            mode = "down";
         } else if (arg == "-h" || arg == "--help") {
             std::cout << "Usage: " << argv[0] << " [options]\n"
                       << "Options:\n"
@@ -238,16 +261,19 @@ int main(int argc, char* argv[]) {
                       << "  -r, --right     Horizontal wipe erase\n"
                       << "  -w, --wipper    Circular wipper erase (back and forth)\n"
                       << "  -b, --blackhole Spiral vacuum erase\n"
+                      << "  -t <ms>         Animation duration in milliseconds (default: 500)\n"
                       << "  -h, --help      Show help message\n";
             return 0;
-        } else if (arg != "-d" && arg != "--down") {
+        } else {
             std::cerr << "Unknown option: " << arg << "\n"
                       << "Try '" << argv[0] << " --help' for more information.\n";
             return 1;
         }
     }
     
-    // Execute chosen mode
+    // Initialize sweeper with parsed duration
+    TerminalSweeper sweeper(duration);
+
     if (mode == "right") {
         sweeper.performRightSweep();
     } else if (mode == "wipper") {
