@@ -70,7 +70,7 @@ public:
             std::cout << emptyLine << std::flush;
 
             // Speed of animation
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            std::this_thread::sleep_for(std::chrono::milliseconds(15));
         }
 
         // Reset Cursor to Top-Left (1,1)
@@ -92,7 +92,7 @@ public:
             std::cout << std::flush;
             
             // Speed of animation
-            std::this_thread::sleep_for(std::chrono::microseconds(1000)); 
+            std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
         }
 
         std::cout << "\033[1;1H"; // Home
@@ -162,33 +162,7 @@ public:
             std::cout << std::flush;
 
             // Delay
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        }
-
-        // --- BACKWARD SWEEP (Returning) ---
-        // We go backwards through the points vector to sweep Right to Left.
-        long r_idx = (long)total - 1;
-
-        while (r_idx >= 0) {
-            double currentAng = points[r_idx].angle;
-            double nextThreshold = currentAng + angleStep;
-
-            activeWipper.clear();
-
-            // Collect points moving backwards
-            while (r_idx >= 0 && points[r_idx].angle < nextThreshold) {
-                activeWipper.push_back(points[r_idx]);
-                r_idx--;
-            }
-
-            // Erase chunk
-            for (const auto& p : activeWipper) {
-                std::cout << "\033[" << p.r << ";" << p.c << "H "; 
-            }
-            std::cout << std::flush;
-
-            // Slightly faster return
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
         std::cout << "\033[1;1H"; 
@@ -226,6 +200,7 @@ public:
         });
 
         int counter = 0;
+        int t = 5000;
         for (const auto& p : points) {
             // Move to position and erase (Overwrite with space)
             std::cout << "\033[" << p.r << ";" << p.c << "H "; 
@@ -233,7 +208,8 @@ public:
             // Optimization: Flush every 10 characters to keep animation smooth
             if (++counter % 10 == 0) {
                  std::cout << std::flush;
-                 std::this_thread::sleep_for(std::chrono::microseconds(400));
+                 std::this_thread::sleep_for(std::chrono::microseconds(t));
+                 t *= 0.99;
             }
         }
         std::cout << std::flush;
