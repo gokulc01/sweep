@@ -24,6 +24,7 @@ private:
         int r;
         int c;
         double angle;
+        double dist; 
     };
 
 public:
@@ -62,33 +63,15 @@ public:
         print("\033[?25l");
 
         std::string emptyLine(width, ' ');
-        std::string scannerLine(width, '=');
-
-        // Color the scanner line Green (ANSI 32) and Bold (1)
-        // \033[1;32m   = Start Green
-        // \033[0m      = Reset
-        std::string coloredScanner = "\033[1;32m" + scannerLine + "\033[0m";
 
         for (int i = 1; i <= height; ++i) {
-            // 1. Erase the PREVIOUS line (if not the first)
-            if (i > 1) {
-                // Move cursor to previous row (i-1), column 1
-                std::cout << "\033[" << (i - 1) << ";1H"; 
-                std::cout << emptyLine;
-            }
-
-            // 2. Draw the SCANNER on the CURRENT line
-            // Move cursor to current row (i), column 1
+            // Simply overwrite the current line with spaces
             std::cout << "\033[" << i << ";1H";
-            std::cout << coloredScanner << std::flush;
+            std::cout << emptyLine << std::flush;
 
-            // Speed of animation (adjust milliseconds to make faster/slower)
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            // Speed of animation
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-
-        // Clean up the very last scanner line
-        std::cout << "\033[" << height << ";1H";
-        std::cout << emptyLine;
 
         // Reset Cursor to Top-Left (1,1)
         std::cout << "\033[1;1H";
@@ -101,31 +84,15 @@ public:
     void performRightSweep() {
         print("\033[?25l"); // Hide cursor
         
-        // A vertical bar used for wiping
-        std::string wiper = "\033[1;36m|\033[0m"; // Cyan pipe
-
         for (int col = 1; col <= width; ++col) {
             for (int row = 1; row <= height; ++row) {
-                // Move to current position
-                std::cout << "\033[" << row << ";" << col << "H";
-                std::cout << wiper;
-                
-                // Erase position behind it (col - 1)
-                if (col > 1) {
-                    std::cout << "\033[" << row << ";" << (col - 1) << "H";
-                    std::cout << " "; 
-                }
+                // Move to current position and erase
+                std::cout << "\033[" << row << ";" << col << "H ";
             }
             std::cout << std::flush;
-            // Faster delay needed because we loop columns * rows
-            // Note: This can be slow on large terminals due to flush overhead
-            std::this_thread::sleep_for(std::chrono::milliseconds(3)); 
-        }
-
-        // Clean up last column
-        for (int row = 1; row <= height; ++row) {
-            std::cout << "\033[" << row << ";" << width << "H";
-            std::cout << " ";
+            
+            // Speed of animation
+            std::this_thread::sleep_for(std::chrono::microseconds(1000)); 
         }
 
         std::cout << "\033[1;1H"; // Home
@@ -156,7 +123,7 @@ public:
                 // Left side (x < 0) -> Angle approaches PI
                 // Right side (x > 0) -> Angle approaches 0
                 double ang = std::atan2(y, x);
-                points.push_back({r, c, ang});
+                points.push_back({r, c, ang, 0.0}); // Dist not used here
             }
         }
 
@@ -180,30 +147,19 @@ public:
             double currentAng = points[idx].angle;
             double nextThreshold = currentAng - angleStep;
 
-            // Clear the *previous* wipper position (overwrite with space)
-            for (const auto& p : activeWipper) {
-                std::cout << "\033[" << p.r << ";" << p.c << "H "; 
-            }
             activeWipper.clear();
 
-            // Collect points for the *new* wipper position
+            // Collect points for the *new* chunk
             while (idx < total && points[idx].angle > nextThreshold) {
                 activeWipper.push_back(points[idx]);
                 idx++;
             }
 
-            // Draw the new wipper
-            std::cout << "\033[1;35m"; // Magenta
+            // Just erase the chunk immediately (no brush drawn)
             for (const auto& p : activeWipper) {
-                std::cout << "\033[" << p.r << ";" << p.c << "H";
-                
-                char brush = '|';
-                if (p.angle > 2.2) brush = '/';
-                else if (p.angle < 0.9) brush = '\\';
-                
-                std::cout << brush; 
+                std::cout << "\033[" << p.r << ";" << p.c << "H "; 
             }
-            std::cout << "\033[0m" << std::flush;
+            std::cout << std::flush;
 
             // Delay
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -217,10 +173,6 @@ public:
             double currentAng = points[r_idx].angle;
             double nextThreshold = currentAng + angleStep;
 
-            // Clear previous wipper
-            for (const auto& p : activeWipper) {
-                std::cout << "\033[" << p.r << ";" << p.c << "H "; 
-            }
             activeWipper.clear();
 
             // Collect points moving backwards
@@ -229,27 +181,62 @@ public:
                 r_idx--;
             }
 
-            // Draw return wipper
-            std::cout << "\033[1;35m"; 
+            // Erase chunk
             for (const auto& p : activeWipper) {
-                std::cout << "\033[" << p.r << ";" << p.c << "H";
-                
-                char brush = '|';
-                if (p.angle > 2.2) brush = '/';
-                else if (p.angle < 0.9) brush = '\\';
-                
-                std::cout << brush; 
+                std::cout << "\033[" << p.r << ";" << p.c << "H "; 
             }
-            std::cout << "\033[0m" << std::flush;
+            std::cout << std::flush;
 
             // Slightly faster return
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
 
-        // Final cleanup
-        for (const auto& p : activeWipper) {
-            std::cout << "\033[" << p.r << ";" << p.c << "H "; 
+        std::cout << "\033[1;1H"; 
+        print("\033[?25h");
+    }
+
+    // Animation 4: Black Hole (Sucks everything into center)
+    void performBlackHoleSweep() {
+        print("\033[?25l"); // Hide cursor
+
+        // Center of the screen
+        int pivotR = height / 2;
+        int pivotC = width / 2;
+
+        std::vector<Point> points;
+        points.reserve(width * height);
+
+        for (int r = 1; r <= height; r++) {
+            for (int c = 1; c <= width; c++) {
+                double dy = (double)(r - pivotR) * 2.0; // Aspect correction
+                double dx = (double)(c - pivotC);
+                double dist = std::sqrt(dx*dx + dy*dy);
+                // Angle used for swirl effect
+                double ang = std::atan2(dy, dx); 
+                points.push_back({r, c, ang, dist});
+            }
         }
+
+        // Sort for Spiral Effect (Outside In)
+        std::sort(points.begin(), points.end(), [](const Point& a, const Point& b) {
+            // Factor 1.5 helps interleave the angle with distance to spiral
+            double scoreA = a.dist + (a.angle / 3.14159);
+            double scoreB = b.dist + (b.angle / 3.14159);
+            return scoreA > scoreB;
+        });
+
+        int counter = 0;
+        for (const auto& p : points) {
+            // Move to position and erase (Overwrite with space)
+            std::cout << "\033[" << p.r << ";" << p.c << "H "; 
+            
+            // Optimization: Flush every 10 characters to keep animation smooth
+            if (++counter % 10 == 0) {
+                 std::cout << std::flush;
+                 std::this_thread::sleep_for(std::chrono::microseconds(400));
+            }
+        }
+        std::cout << std::flush;
 
         std::cout << "\033[1;1H"; 
         print("\033[?25h");
@@ -266,12 +253,15 @@ int main(int argc, char* argv[]) {
             mode = "right";
         } else if (arg == "-w" || arg == "--wipper") { 
             mode = "wipper";
+        } else if (arg == "-b" || arg == "--blackhole") { 
+            mode = "blackhole";
         } else if (arg == "-h" || arg == "--help") {
             std::cout << "Usage: " << argv[0] << " [options]\n"
                       << "Options:\n"
-                      << "  -d, --down      Vertical green scanner (default)\n"
-                      << "  -r, --right     Horizontal cyan wipe\n"
-                      << "  -w, --wipper    Circular magenta wipper (back and forth)\n"
+                      << "  -d, --down      Vertical scanner erase (default)\n"
+                      << "  -r, --right     Horizontal wipe erase\n"
+                      << "  -w, --wipper    Circular wipper erase (back and forth)\n"
+                      << "  -b, --blackhole Spiral vacuum erase\n"
                       << "  -h, --help      Show help message\n";
             return 0;
         } else if (arg != "-d" && arg != "--down") {
@@ -286,6 +276,8 @@ int main(int argc, char* argv[]) {
         sweeper.performRightSweep();
     } else if (mode == "wipper") {
         sweeper.performWipperSweep();
+    } else if (mode == "blackhole") {
+        sweeper.performBlackHoleSweep();
     } else {
         sweeper.performDownSweep(); 
     }
