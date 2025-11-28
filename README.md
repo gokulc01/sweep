@@ -11,4 +11,4 @@
   - `-r (right)` : left to right sweep
   - `-w (wiper)` : wiper sweep
   - `-b (blackhole)` : shrinking circle sweep
-- `-t <num>`: target animation time 
+- `-t <num in ms>`: target animation time 
