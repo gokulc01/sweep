@@ -12,3 +12,7 @@
   - `-w (wiper)` : wiper sweep
   - `-b (blackhole)` : shrinking circle sweep
 - `-t <num in ms>`: target animation time 
+
+## Demo
+### right
+[![asciicast](https://asciinema.org/a/wB1QL0CdjdWl78N4VKEBpZa8d.svg)](https://asciinema.org/a/wB1QL0CdjdWl78N4VKEBpZa8d)
