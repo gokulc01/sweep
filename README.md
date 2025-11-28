@@ -1,6 +1,6 @@
 ## Install
-- Run `make build`, it generates executable sweep in working directory
-- Run `make install`, it generates executable sweep in `~/.local/bin/`
+- Run `make build`, it generates executable sweep in working directory.
+- Run `make install`, it generates executable sweep in `~/.local/bin/`, if `~/.local/bin/` is not in your PATH, copy the sweep executable to `/usr/bin/` or anywhere that is in PATH.
 
 
 ## Run
