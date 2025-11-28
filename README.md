@@ -6,7 +6,9 @@
 ## Run
 `sweep`
 ### Arguments
-- `-d (down)` : top to down sweep
-- `-r (right)` : left to right sweep
-- `-w (wiper)` : wiper sweep
-- `-b (blackhole)` : shrinking circle sweep
+- `-(d|r|w|b)`:  modes
+  - `-d (down)` : top to down sweep
+  - `-r (right)` : left to right sweep
+  - `-w (wiper)` : wiper sweep
+  - `-b (blackhole)` : shrinking circle sweep
+- `-t <num>`: target animation time 
