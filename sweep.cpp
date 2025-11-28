@@ -149,7 +149,6 @@ public:
         int passDuration = targetDurationMs / 2;
         int stepDelay = std::max(1, passDuration / stepsPerPass);
 
-        // Pass 1: Forward Sweep
         size_t idx = 0;
         size_t total = points.size();
         std::vector<Point> activeWipper;
@@ -162,25 +161,6 @@ public:
             while (idx < total && points[idx].angle > nextThreshold) {
                 activeWipper.push_back(points[idx]);
                 idx++;
-            }
-
-            for (const auto& p : activeWipper) {
-                std::cout << "\033[" << p.r << ";" << p.c << "H "; 
-            }
-            std::cout << std::flush;
-            std::this_thread::sleep_for(std::chrono::milliseconds(stepDelay));
-        }
-
-        // Pass 2: Backward Sweep
-        long r_idx = (long)total - 1;
-        while (r_idx >= 0) {
-            double currentAng = points[r_idx].angle;
-            double nextThreshold = currentAng + angleStep;
-
-            activeWipper.clear();
-            while (r_idx >= 0 && points[r_idx].angle < nextThreshold) {
-                activeWipper.push_back(points[r_idx]);
-                r_idx--;
             }
 
             for (const auto& p : activeWipper) {
